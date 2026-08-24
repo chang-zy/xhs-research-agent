@@ -507,7 +507,16 @@ def cmd_user_profile(args: argparse.Namespace) -> None:
 
     browser, page = _connect(args)
     try:
-        profile = get_user_profile(page, args.user_id, args.xsec_token)
+        profile = get_user_profile(
+            page,
+            args.user_id,
+            args.xsec_token,
+            load_all_notes=args.load_all_notes,
+            max_note_items=args.max_note_items,
+            scroll_speed=args.scroll_speed,
+            max_scroll_rounds=args.max_scroll_rounds,
+            stable_rounds=args.stable_rounds,
+        )
         _output(profile.to_dict())
     finally:
         browser.close()
@@ -986,6 +995,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub = subparsers.add_parser("user-profile", help="获取用户主页")
     sub.add_argument("--user-id", required=True)
     sub.add_argument("--xsec-token", required=True)
+    sub.add_argument("--load-all-notes", action="store_true", help="滚动加载主页全部帖子")
+    sub.add_argument("--max-note-items", type=int, default=0, help="最多加载帖子数；0 表示全部")
+    sub.add_argument("--scroll-speed", default="normal", help="slow|normal|fast")
+    sub.add_argument("--max-scroll-rounds", type=int, default=120, help="最大滚动轮数")
+    sub.add_argument(
+        "--stable-rounds",
+        type=int,
+        default=4,
+        help="连续多少轮位于底部且无新增后判定加载完成",
+    )
     sub.set_defaults(func=cmd_user_profile)
 
     # post-comment

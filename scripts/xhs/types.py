@@ -389,9 +389,10 @@ class UserProfileResponse:
     user_basic_info: UserBasicInfo = field(default_factory=UserBasicInfo)
     interactions: list[UserInteraction] = field(default_factory=list)
     feeds: list[Feed] = field(default_factory=list)
+    note_load_status: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
-        return {
+        result = {
             "basicInfo": {
                 "nickname": self.user_basic_info.nickname,
                 "redId": self.user_basic_info.red_id,
@@ -404,6 +405,9 @@ class UserProfileResponse:
             ],
             "feeds": [f.to_dict() for f in self.feeds],
         }
+        if self.note_load_status:
+            result["noteLoadStatus"] = self.note_load_status
+        return result
 
 
 # ========== 搜索 ==========

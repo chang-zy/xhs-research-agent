@@ -35,7 +35,7 @@ metadata:
 | `list-feeds` | 获取首页推荐 Feed |
 | `search-feeds` | 关键词搜索笔记（支持筛选） |
 | `get-feed-detail` | 获取笔记完整内容、评论和原图本地路径 |
-| `user-profile` | 获取用户主页信息 |
+| `user-profile` | 获取用户主页信息；可滚动加载全部帖子并报告完整性 |
 
 ---
 
@@ -207,7 +207,21 @@ python scripts/cli.py user-profile \
   --xsec-token XSEC_TOKEN
 ```
 
-输出包含：用户基本信息、粉丝/关注数、笔记列表。
+完整加载主页帖子：
+
+```bash
+python scripts/cli.py user-profile \
+  --user-id USER_ID \
+  --xsec-token XSEC_TOKEN \
+  --load-all-notes
+```
+
+- `--max-note-items N` 可设置采集上限；0 表示不设上限。
+- `--scroll-speed slow|normal|fast` 控制滚动节奏，默认 `normal`。
+- 输出包含用户基本信息、粉丝/关注数、去重后的帖子列表及 `noteLoadStatus`。
+- 只有 `noteLoadStatus.complete: true` 时才能表述为“全部帖子”。
+- `reason: end_marker_detected` 为页面明确结束；`stable_bottom` 为连续多轮无新增的推断结束。
+- `max_items_reached` 或 `max_scroll_rounds_reached` 表示不完整，必须向用户说明。
 
 ## 结果呈现
 

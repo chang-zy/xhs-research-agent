@@ -36,3 +36,32 @@ def test_get_feed_detail_accepts_image_download_options() -> None:
     assert args.download_images is True
     assert args.image_dir == "/tmp/xhs-images/feed-1"
     assert args.max_images == 3
+
+
+def test_user_profile_accepts_complete_note_loading_options() -> None:
+    cli = _load_cli_module()
+    parser = cli.build_parser()
+    args = parser.parse_args(
+        [
+            "user-profile",
+            "--user-id",
+            "user-1",
+            "--xsec-token",
+            "token-1",
+            "--load-all-notes",
+            "--max-note-items",
+            "50",
+            "--scroll-speed",
+            "slow",
+            "--max-scroll-rounds",
+            "80",
+            "--stable-rounds",
+            "5",
+        ]
+    )
+
+    assert args.load_all_notes is True
+    assert args.max_note_items == 50
+    assert args.scroll_speed == "slow"
+    assert args.max_scroll_rounds == 80
+    assert args.stable_rounds == 5

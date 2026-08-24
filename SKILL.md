@@ -82,7 +82,7 @@ metadata:
 | `cli.py list-feeds` | 获取首页推荐 Feed |
 | `cli.py search-feeds` | 关键词搜索笔记 |
 | `cli.py get-feed-detail` | 获取笔记完整内容、评论；可下载原图供视觉读取 |
-| `cli.py user-profile` | 获取用户主页信息 |
+| `cli.py user-profile` | 获取用户主页信息；可滚动加载全部帖子并核验完整性 |
 
 ### xhs-interact — 社交互动
 
