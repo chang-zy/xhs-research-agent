@@ -3,7 +3,6 @@ name: xiaohongshu-skills
 description: |
   小红书自动化技能集合。支持认证登录、内容发布、搜索发现、社交互动、复合运营。
   当用户要求操作小红书（发布、搜索、评论、登录、分析、点赞、收藏）时触发。
-version: 1.0.0
 metadata:
   openclaw:
     requires:
@@ -82,7 +81,7 @@ metadata:
 |------|------|
 | `cli.py list-feeds` | 获取首页推荐 Feed |
 | `cli.py search-feeds` | 关键词搜索笔记 |
-| `cli.py get-feed-detail` | 获取笔记完整内容和评论 |
+| `cli.py get-feed-detail` | 获取笔记完整内容、评论；可下载原图供视觉读取 |
 | `cli.py user-profile` | 获取用户主页信息 |
 
 ### xhs-interact — 社交互动
@@ -118,6 +117,13 @@ python scripts/cli.py search-feeds --keyword "关键词"
 # 5. 查看笔记详情
 python scripts/cli.py get-feed-detail \
   --feed-id FEED_ID --xsec-token XSEC_TOKEN
+
+# 读取帖子图片（返回 note.imageList[].localPath）
+python scripts/cli.py get-feed-detail \
+  --feed-id FEED_ID \
+  --xsec-token XSEC_TOKEN \
+  --download-images \
+  --image-dir /absolute/writable/path/xhs-images/FEED_ID
 
 # 6. 发布图文
 python scripts/cli.py publish \

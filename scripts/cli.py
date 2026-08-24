@@ -428,6 +428,7 @@ def cmd_search_feeds(args: argparse.Namespace) -> None:
 
 def cmd_get_feed_detail(args: argparse.Namespace) -> None:
     """获取 Feed 详情。"""
+    from image_downloader import ImageDownloader
     from xhs.feed_detail import get_feed_detail
     from xhs.types import CommentLoadConfig
 
@@ -449,7 +450,34 @@ def cmd_get_feed_detail(args: argparse.Namespace) -> None:
             config=config,
             keyword=getattr(args, "keyword", "篮球"),
         )
-        _output(detail.to_dict())
+        result = detail.to_dict()
+        if args.download_images:
+            image_dir = os.path.abspath(
+                args.image_dir or os.path.join(os.getcwd(), "xhs-images", args.feed_id)
+            )
+            downloader = ImageDownloader(image_dir)
+            images = result.get("note", {}).get("imageList", [])
+            selected = images[: args.max_images] if args.max_images > 0 else images
+            failures: list[dict] = []
+            downloaded = 0
+            for index, image in enumerate(selected, start=1):
+                image_url = image.get("urlDefault", "")
+                if not image_url:
+                    failures.append({"index": index, "error": "图片 URL 为空"})
+                    continue
+                try:
+                    image["localPath"] = os.path.abspath(downloader.download_image(image_url))
+                    downloaded += 1
+                except Exception as download_error:
+                    failures.append({"index": index, "error": str(download_error)})
+            result["imageDownloadStatus"] = {
+                "requested": len(selected),
+                "downloaded": downloaded,
+                "failed": len(failures),
+                "directory": image_dir,
+                "failures": failures,
+            }
+        _output(result)
     except Exception as e:
         # 附带 404 诊断事件，帮助定位根因
         diagnostics: list = []
@@ -937,6 +965,21 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("--max-comment-items", type=int, default=0)
     sub.add_argument("--scroll-speed", default="normal", help="slow|normal|fast")
     sub.add_argument("--keyword", default="篮球", help="风控重试时的搜索关键词")
+    sub.add_argument(
+        "--download-images",
+        action="store_true",
+        help="下载笔记原图，并在 imageList 中返回 localPath，供视觉读取",
+    )
+    sub.add_argument(
+        "--image-dir",
+        help="图片保存目录（建议使用绝对路径；默认 ./xhs-images/<feed-id>）",
+    )
+    sub.add_argument(
+        "--max-images",
+        type=int,
+        default=0,
+        help="最多下载图片数；0 表示全部",
+    )
     sub.set_defaults(func=cmd_get_feed_detail)
 
     # user-profile

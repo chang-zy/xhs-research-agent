@@ -3,7 +3,6 @@ name: xhs-explore
 description: |
   小红书内容发现与分析技能。搜索笔记、浏览首页、查看详情、获取用户资料。
   当用户要求搜索小红书、查看笔记详情、浏览首页、查看用户主页时触发。
-version: 1.0.0
 metadata:
   openclaw:
     requires:
@@ -35,7 +34,7 @@ metadata:
 |--------|------|
 | `list-feeds` | 获取首页推荐 Feed |
 | `search-feeds` | 关键词搜索笔记（支持筛选） |
-| `get-feed-detail` | 获取笔记完整内容和评论 |
+| `get-feed-detail` | 获取笔记完整内容、评论和原图本地路径 |
 | `user-profile` | 获取用户主页信息 |
 
 ---
@@ -156,6 +155,27 @@ python scripts/cli.py get-feed-detail \
 `remainingButtons` / `failedButtons`，不得将结果表述为“全部评论”。
 
 输出包含：笔记完整内容、图片列表、互动数据、评论列表。
+
+### 阅读笔记图片
+
+当用户要求了解帖子完整内容、图片文字、截图、图表或画面信息时，详情获取必须加
+`--download-images`，将原图保存到可写的绝对目录：
+
+```bash
+python scripts/cli.py get-feed-detail \
+  --feed-id 67abc1234def567890123456 \
+  --xsec-token XSEC_TOKEN \
+  --download-images \
+  --image-dir /absolute/writable/path/xhs-images/67abc1234def567890123456
+```
+
+- 命令会在 `note.imageList[].localPath` 返回每张原图的绝对路径。
+- 使用本地图片视觉读取能力逐张查看 `localPath`；这一步用于识别图片文字、截图、
+  图表、产品界面和非文字画面，不要只做 OCR。
+- 按图片原始顺序总结，并区分“正文文字”和“图片信息”；无法辨认的内容要明确标注。
+- `imageDownloadStatus.downloaded` 小于 `requested` 时，要报告下载不完整以及失败项。
+- 只需抽样时可加 `--max-images N`；用户要求完整阅读时不得抽样。
+- 图片下载仍必须由本项目 CLI 完成；视觉读取仅针对 CLI 返回的本地文件。
 
 ### 批量获取详情的防风控策略
 
