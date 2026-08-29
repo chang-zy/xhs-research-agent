@@ -38,6 +38,31 @@ def test_get_feed_detail_accepts_image_download_options() -> None:
     assert args.max_images == 3
 
 
+def test_get_feed_detail_accepts_confirmed_video_preparation_options() -> None:
+    cli = _load_cli_module()
+    parser = cli.build_parser()
+    args = parser.parse_args(
+        [
+            "get-feed-detail",
+            "--feed-id",
+            "feed-video-1",
+            "--xsec-token",
+            "token-1",
+            "--prepare-video",
+            "--confirm-video-understanding",
+            "--video-dir",
+            "/tmp/xhs-videos/feed-video-1",
+            "--max-video-frames",
+            "24",
+        ]
+    )
+
+    assert args.prepare_video is True
+    assert args.confirm_video_understanding is True
+    assert args.video_dir == "/tmp/xhs-videos/feed-video-1"
+    assert args.max_video_frames == 24
+
+
 def test_user_profile_accepts_complete_note_loading_options() -> None:
     cli = _load_cli_module()
     parser = cli.build_parser()

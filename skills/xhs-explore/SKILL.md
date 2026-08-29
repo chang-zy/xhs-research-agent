@@ -34,7 +34,7 @@ metadata:
 |--------|------|
 | `list-feeds` | 获取首页推荐 Feed |
 | `search-feeds` | 关键词搜索笔记（支持筛选） |
-| `get-feed-detail` | 获取笔记完整内容、评论和原图本地路径 |
+| `get-feed-detail` | 获取笔记完整内容、评论、原图或视频理解素材 |
 | `user-profile` | 获取用户主页信息；可滚动加载全部帖子并报告完整性 |
 
 ---
@@ -176,6 +176,35 @@ python scripts/cli.py get-feed-detail \
 - `imageDownloadStatus.downloaded` 小于 `requested` 时，要报告下载不完整以及失败项。
 - 只需抽样时可加 `--max-images N`；用户要求完整阅读时不得抽样。
 - 图片下载仍必须由本项目 CLI 完成；视觉读取仅针对 CLI 返回的本地文件。
+
+### 理解视频笔记
+
+基础详情会在 `note.video` 中保留视频元数据。检测到视频笔记后，必须先向用户说明：
+
+> 完整视频理解需要下载视频、提取关键帧并读取音轨/字幕，耗时较长，也会消耗较多模型额度。是否需要继续理解这个视频？
+
+这是开始视频处理前的强制确认。即使用户最初说“看看这篇笔记”，也不能默认其同意完整视频理解。用户明确确认前：
+
+- 不得使用 `--prepare-video`；
+- 不得使用 `--confirm-video-understanding`；
+- 不得下载视频、抽帧或转写音轨。
+
+用户确认后运行：
+
+```bash
+python scripts/cli.py get-feed-detail \
+  --feed-id 67abc1234def567890123456 \
+  --xsec-token XSEC_TOKEN \
+  --prepare-video \
+  --confirm-video-understanding \
+  --video-dir /absolute/writable/path/xhs-videos/67abc1234def567890123456
+```
+
+- `videoPreparationStatus.frames[]` 是按时间顺序提取的关键帧绝对路径，逐张使用本地视觉读取能力查看。
+- `videoPreparationStatus.audioPath` 是提取的音轨。当前环境具有语音转写能力时再转写；没有时必须说明未核验口播，不能仅凭画面臆测。
+- 综合正文、画面、屏幕文字、口播和镜头先后关系输出摘要；重要结论尽量标注时间顺序和证据来源。
+- 默认最多提取 18 帧；用户要求精读时可用 `--max-video-frames N` 增加，但增加前再次说明耗时和额度会随帧数上升。
+- `videoPreparationStatus.success: false` 时报告具体失败原因，不得把封面或标题当作完整视频内容。
 
 ### 批量获取详情的防风控策略
 

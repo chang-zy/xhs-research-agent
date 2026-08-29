@@ -428,6 +428,18 @@ def cmd_search_feeds(args: argparse.Namespace) -> None:
 
 def cmd_get_feed_detail(args: argparse.Namespace) -> None:
     """获取 Feed 详情。"""
+    if args.prepare_video and not args.confirm_video_understanding:
+        _output(
+            {
+                "success": False,
+                "confirmationRequired": True,
+                "warning": "完整视频理解耗时较长，并会消耗较多模型额度。",
+                "question": "是否需要继续理解这个视频？",
+                "nextStep": "用户确认后，重新运行并添加 --confirm-video-understanding。",
+            },
+            exit_code=2,
+        )
+
     from image_downloader import ImageDownloader
     from xhs.feed_detail import get_feed_detail
     from xhs.types import CommentLoadConfig
@@ -477,6 +489,18 @@ def cmd_get_feed_detail(args: argparse.Namespace) -> None:
                 "directory": image_dir,
                 "failures": failures,
             }
+        if args.prepare_video:
+            from video_processor import VideoProcessor
+
+            video_dir = os.path.abspath(
+                args.video_dir or os.path.join(os.getcwd(), "xhs-videos", args.feed_id)
+            )
+            processor = VideoProcessor(video_dir)
+            video_data = result.get("note", {}).get("video", {})
+            result["videoPreparationStatus"] = processor.prepare(
+                video_data,
+                max_frames=args.max_video_frames,
+            )
         _output(result)
     except Exception as e:
         # 附带 404 诊断事件，帮助定位根因
@@ -988,6 +1012,26 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=0,
         help="最多下载图片数；0 表示全部",
+    )
+    sub.add_argument(
+        "--prepare-video",
+        action="store_true",
+        help="下载视频并提取关键帧、音轨和元数据，供视频理解",
+    )
+    sub.add_argument(
+        "--confirm-video-understanding",
+        action="store_true",
+        help="确认已向用户说明视频理解耗时较长且消耗较多模型额度",
+    )
+    sub.add_argument(
+        "--video-dir",
+        help="视频素材保存目录（建议使用绝对路径；默认 ./xhs-videos/<feed-id>）",
+    )
+    sub.add_argument(
+        "--max-video-frames",
+        type=int,
+        default=18,
+        help="最多提取的关键帧数量；默认 18",
     )
     sub.set_defaults(func=cmd_get_feed_detail)
 

@@ -266,6 +266,9 @@ class FeedDetail:
     user: User = field(default_factory=User)
     interact_info: InteractInfo = field(default_factory=InteractInfo)
     image_list: list[DetailImageInfo] = field(default_factory=list)
+    # 保留详情接口中的原始视频元数据。不同版本的小红书页面可能返回
+    # 不同的 stream/media 结构，过早收窄类型会丢失可下载地址。
+    video: dict = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, d: dict) -> FeedDetail:
@@ -282,10 +285,11 @@ class FeedDetail:
             user=User.from_dict(d.get("user", {})),
             interact_info=InteractInfo.from_dict(d.get("interactInfo", {})),
             image_list=[DetailImageInfo.from_dict(i) for i in d.get("imageList", []) or []],
+            video=d.get("video", {}) if isinstance(d.get("video"), dict) else {},
         )
 
     def to_dict(self) -> dict:
-        return {
+        result = {
             "noteId": self.note_id,
             "title": self.title,
             "desc": self.desc,
@@ -315,6 +319,9 @@ class FeedDetail:
                 for img in self.image_list
             ],
         }
+        if self.video:
+            result["video"] = self.video
+        return result
 
 
 @dataclass

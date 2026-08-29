@@ -81,7 +81,7 @@ metadata:
 |------|------|
 | `cli.py list-feeds` | 获取首页推荐 Feed |
 | `cli.py search-feeds` | 关键词搜索笔记 |
-| `cli.py get-feed-detail` | 获取笔记完整内容、评论；可下载原图供视觉读取 |
+| `cli.py get-feed-detail` | 获取笔记完整内容、评论；可下载原图或准备视频理解素材 |
 | `cli.py user-profile` | 获取用户主页信息；可滚动加载全部帖子并核验完整性 |
 
 ### xhs-interact — 社交互动
@@ -125,6 +125,14 @@ python scripts/cli.py get-feed-detail \
   --download-images \
   --image-dir /absolute/writable/path/xhs-images/FEED_ID
 
+# 准备视频理解素材（必须先取得用户明确确认）
+python scripts/cli.py get-feed-detail \
+  --feed-id FEED_ID \
+  --xsec-token XSEC_TOKEN \
+  --prepare-video \
+  --confirm-video-understanding \
+  --video-dir /absolute/writable/path/xhs-videos/FEED_ID
+
 # 6. 发布图文
 python scripts/cli.py publish \
   --title-file title.txt \
@@ -144,6 +152,7 @@ python scripts/cli.py like-feed \
 
 ## 失败处理
 
+- **视频理解确认**：检测到视频笔记后，先提醒用户“完整视频理解耗时较长，并会消耗较多模型额度”，然后询问是否继续。用户明确确认前，不得添加 `--prepare-video` 或 `--confirm-video-understanding`，不得下载、抽帧或转写视频。
 - **未登录**：提示用户执行登录流程（xhs-auth）。
 - **Chrome 未启动**：使用 `chrome_launcher.py` 启动浏览器。
 - **操作超时**：检查网络连接，适当增加等待时间。
