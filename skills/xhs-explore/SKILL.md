@@ -34,6 +34,7 @@ metadata:
 |--------|------|
 | `list-feeds` | 获取首页推荐 Feed |
 | `search-feeds` | 关键词搜索笔记（支持筛选） |
+| `browse-local` | 使用当前小红书会话自动定位浏览同城/附近公开账号 |
 | `get-feed-detail` | 获取笔记完整内容、评论、原图或视频理解素材 |
 | `user-profile` | 获取用户主页信息；可滚动加载全部帖子并报告完整性 |
 
@@ -99,6 +100,17 @@ python scripts/cli.py search-feeds \
 | `--publish-time` | 不限、一天内、一周内、半年内 |
 | `--search-scope` | 不限、已看过、未看过、已关注 |
 | `--location` | 不限、同城、附近 |
+
+### 本地浏览
+
+当用户要看所在城市或附近的公开账号、笔记时，不询问城市，直接使用当前小红书浏览器会话的本地筛选：
+
+```bash
+python scripts/cli.py browse-local --keyword "咖啡" --limit 30
+python scripts/cli.py browse-local --keyword "展览" --scope 附近 --limit 20
+```
+
+返回值按账号去重并附带一条样本笔记。`localContext.source` 固定说明定位来自小红书当前会话；若页面未可靠提供城市名，`city` 会为 `null`。不得猜测用户城市、读取精确地址，或从关键词/搜索结果推断账号主体的身份、年龄、性别或外貌。
 
 #### 搜索结果字段
 

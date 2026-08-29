@@ -426,6 +426,25 @@ def cmd_search_feeds(args: argparse.Namespace) -> None:
         browser.close()
 
 
+def cmd_browse_local(args: argparse.Namespace) -> None:
+    """按小红书当前会话自动定位浏览本地公开账号。"""
+    from xhs.local_discovery import browse_local_accounts
+
+    browser, page = _connect(args)
+    try:
+        _output(
+            browse_local_accounts(
+                page,
+                args.keyword,
+                scope=args.scope,
+                limit=args.limit,
+                sort_by=args.sort_by,
+            )
+        )
+    finally:
+        browser.close()
+
+
 def cmd_get_feed_detail(args: argparse.Namespace) -> None:
     """获取 Feed 详情。"""
     if args.prepare_video and not args.confirm_video_understanding:
@@ -982,6 +1001,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_argument("--search-scope", help="范围: 不限|已看过|未看过|已关注")
     sub.add_argument("--location", help="位置: 不限|同城|附近")
     sub.set_defaults(func=cmd_search_feeds)
+
+    # browse-local
+    sub = subparsers.add_parser(
+        "browse-local", help="按当前小红书会话自动定位浏览本地公开账号"
+    )
+    sub.add_argument("--keyword", required=True, help="搜索关键词")
+    sub.add_argument("--scope", choices=["同城", "附近"], default="同城", help="本地范围 (default: 同城)")
+    sub.add_argument("--limit", type=int, default=30, help="最多返回的去重账号数，1-100 (default: 30)")
+    sub.add_argument("--sort-by", default="综合", help="排序: 综合|最新|最多点赞|最多评论|最多收藏")
+    sub.set_defaults(func=cmd_browse_local)
 
     # get-feed-detail
     sub = subparsers.add_parser("get-feed-detail", help="获取 Feed 详情")

@@ -81,6 +81,7 @@ metadata:
 |------|------|
 | `cli.py list-feeds` | 获取首页推荐 Feed |
 | `cli.py search-feeds` | 关键词搜索笔记 |
+| `cli.py browse-local` | 按当前小红书会话自动定位浏览同城/附近公开账号 |
 | `cli.py get-feed-detail` | 获取笔记完整内容、评论；可下载原图或准备视频理解素材 |
 | `cli.py user-profile` | 获取用户主页信息；可滚动加载全部帖子并核验完整性 |
 
@@ -113,6 +114,9 @@ python scripts/cli.py login
 
 # 4. 搜索笔记
 python scripts/cli.py search-feeds --keyword "关键词"
+
+# 不询问城市，使用当前小红书浏览器会话的自动定位结果浏览本地公开账号
+python scripts/cli.py browse-local --keyword "咖啡" --limit 30
 
 # 5. 查看笔记详情
 python scripts/cli.py get-feed-detail \
@@ -153,6 +157,7 @@ python scripts/cli.py like-feed \
 ## 失败处理
 
 - **视频理解确认**：检测到视频笔记后，先提醒用户“完整视频理解耗时较长，并会消耗较多模型额度”，然后询问是否继续。用户明确确认前，不得添加 `--prepare-video` 或 `--confirm-video-understanding`，不得下载、抽帧或转写视频。
+- **本地浏览边界**：`browse-local` 只触发小红书页面自身的“同城/附近”筛选，不询问用户城市，也不读取精确地址。页面未可靠返回城市名时，必须保持 `city: null`；结果只是关键词命中的公开账号，不能推断或验证账号主体的身份、年龄、性别或外貌。
 - **未登录**：提示用户执行登录流程（xhs-auth）。
 - **Chrome 未启动**：使用 `chrome_launcher.py` 启动浏览器。
 - **操作超时**：检查网络连接，适当增加等待时间。

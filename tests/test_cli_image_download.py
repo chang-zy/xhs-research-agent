@@ -90,3 +90,14 @@ def test_user_profile_accepts_complete_note_loading_options() -> None:
     assert args.scroll_speed == "slow"
     assert args.max_scroll_rounds == 80
     assert args.stable_rounds == 5
+
+
+def test_browse_local_defaults_to_session_based_same_city_scope() -> None:
+    cli = _load_cli_module()
+    parser = cli.build_parser()
+    args = parser.parse_args(["browse-local", "--keyword", "咖啡"])
+
+    assert args.keyword == "咖啡"
+    assert args.scope == "同城"
+    assert args.limit == 30
+    assert args.sort_by == "综合"
