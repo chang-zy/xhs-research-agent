@@ -6,7 +6,7 @@ import hashlib
 import logging
 import os
 import time
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import requests
 
@@ -19,6 +19,8 @@ _USER_AGENT = (
 
 # 已知图片扩展名
 _IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg"}
+_XHS_CDN_SUFFIX = ".xhscdn.com"
+_XHS_REFERER = "https://www.xiaohongshu.com/"
 
 
 def is_image_url(path: str) -> bool:
@@ -58,16 +60,19 @@ class ImageDownloader:
         if existing:
             return existing
 
-        # 下载
-        parsed = urlparse(image_url)
+        # 小红书 CDN 的 http 图片链接会被拒绝；保持原路径和签名，仅升级为 https。
+        request_url = self._secure_xhs_cdn_url(image_url)
+        parsed = urlparse(request_url)
         headers = {
             "User-Agent": _USER_AGENT,
-            "Referer": f"{parsed.scheme}://{parsed.hostname}/",
+            "Referer": _XHS_REFERER
+            if parsed.hostname and parsed.hostname.endswith(_XHS_CDN_SUFFIX)
+            else f"{parsed.scheme}://{parsed.hostname}/",
         }
 
-        resp = self._session.get(image_url, headers=headers)
+        resp = self._session.get(request_url, headers=headers, timeout=30)
         if resp.status_code != 200:
-            raise RuntimeError(f"下载失败 (status={resp.status_code}): {image_url}")
+            raise RuntimeError(f"下载失败 (status={resp.status_code}): {request_url}")
 
         # 保存
         with open(filepath, "wb") as f:
@@ -75,6 +80,14 @@ class ImageDownloader:
 
         logger.info("下载完成: %s -> %s", image_url, filepath)
         return filepath
+
+    @staticmethod
+    def _secure_xhs_cdn_url(image_url: str) -> str:
+        """仅将小红书 CDN 的 http 链接升级为 https，避免改变 URL 签名。"""
+        parsed = urlparse(image_url)
+        if parsed.scheme == "http" and parsed.hostname and parsed.hostname.endswith(_XHS_CDN_SUFFIX):
+            return urlunparse(parsed._replace(scheme="https"))
+        return image_url
 
     def download_images(self, image_urls: list[str]) -> list[str]:
         """批量下载图片。"""
