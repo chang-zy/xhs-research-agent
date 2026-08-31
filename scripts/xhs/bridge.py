@@ -265,6 +265,10 @@ class BridgePage:
         result = self._call("get_netlog") or {}
         return result.get("entries") or []
 
+    def cleanup_managed_tabs(self) -> dict:
+        """关闭由扩展为自动化新建的标签页，不影响用户原有标签页。"""
+        return self._call("cleanup_managed_tabs") or {"closed_tabs": 0}
+
     # ─── 无操作（原 CDP 专有功能，扩展模式不需要） ─────────────────
 
     def inject_stealth(self) -> None:

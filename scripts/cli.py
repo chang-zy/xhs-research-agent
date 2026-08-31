@@ -10,10 +10,16 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import os
+import signal
+import subprocess
 import sys
+import tempfile
+import time
+from pathlib import Path
 
 # Windows 控制台默认编码（如 cp1252）不支持中文，强制 UTF-8
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
@@ -26,6 +32,10 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 logger = logging.getLogger("xhs-cli")
+
+_BROWSER_STATE_FILE = Path(tempfile.gettempdir()) / (
+    f"xhs-bridge-managed-chrome-{getattr(os, 'getuid', lambda: 0)()}.json"
+)
 
 
 # ─── 输出工具 ────────────────────────────────────────────────────────────────
@@ -64,6 +74,112 @@ class _DummyBrowser:
 
     def close_page(self, page) -> None:
         pass
+
+
+def _find_chrome_pid() -> int | None:
+    """返回 Chrome 主进程 PID；找不到时返回 None。"""
+    if sys.platform == "darwin":
+        commands = [
+            ["pgrep", "-f", "^/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"],
+            ["pgrep", "-x", "Google Chrome"],
+        ]
+    elif sys.platform == "win32":
+        try:
+            result = subprocess.run(
+                ["tasklist", "/FI", "IMAGENAME eq chrome.exe", "/FO", "CSV", "/NH"],
+                capture_output=True,
+                check=False,
+                text=True,
+            )
+        except OSError:
+            return None
+        for line in result.stdout.splitlines():
+            fields = [field.strip('"') for field in line.split('","')]
+            if len(fields) > 1 and fields[0].lower() == "chrome.exe":
+                with contextlib.suppress(ValueError):
+                    return int(fields[1])
+        return None
+    else:
+        commands = [["pgrep", "-o", "-f", "(^|/)(google-chrome|chromium)( |$)"]]
+
+    for command in commands:
+        try:
+            result = subprocess.run(command, capture_output=True, check=False, text=True)
+        except OSError:
+            continue
+        if result.returncode == 0:
+            with contextlib.suppress(ValueError):
+                return int(result.stdout.splitlines()[0].strip())
+    return None
+
+
+def _is_pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _read_browser_state() -> dict | None:
+    try:
+        state = json.loads(_BROWSER_STATE_FILE.read_text(encoding="utf-8"))
+        pid = int(state["pid"])
+    except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    if not _is_pid_alive(pid) or _find_chrome_pid() != pid:
+        with contextlib.suppress(OSError):
+            _BROWSER_STATE_FILE.unlink()
+        return None
+    return state
+
+
+def _record_managed_chrome(pid: int) -> None:
+    state = {"pid": pid, "platform": sys.platform, "started_at": time.time()}
+    _BROWSER_STATE_FILE.write_text(
+        json.dumps(state, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def _quit_chrome(force: bool = False) -> dict:
+    """优雅关闭 Chrome；默认只关闭由本技能启动的实例。"""
+    state = _read_browser_state()
+    if state is None and not force:
+        return {
+            "closed": False,
+            "reason": "Chrome 不是由本次自动化启动，已保留用户浏览器",
+        }
+
+    pid = int(state["pid"]) if state else _find_chrome_pid() or 0
+    if not pid:
+        return {"closed": False, "reason": "未发现运行中的 Chrome"}
+
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(
+                ["osascript", "-e", 'tell application "Google Chrome" to quit'],
+                check=False,
+                timeout=15,
+            )
+        elif sys.platform == "win32":
+            subprocess.run(["taskkill", "/PID", str(pid)], check=False, timeout=15)
+        else:
+            os.kill(pid, signal.SIGTERM)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"closed": False, "reason": f"关闭 Chrome 失败: {exc}"}
+
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline and _is_pid_alive(pid):
+        time.sleep(0.25)
+    closed = not _is_pid_alive(pid)
+    if closed:
+        with contextlib.suppress(OSError):
+            _BROWSER_STATE_FILE.unlink()
+    return {
+        "closed": closed,
+        "reason": "Chrome 已优雅退出" if closed else "Chrome 未在等待时间内退出",
+    }
 
 
 def _ensure_bridge_ready(bridge_url: str) -> None:
@@ -130,9 +246,10 @@ def _ensure_bridge_ready(bridge_url: str) -> None:
     logger.warning("等待扩展连接超时，请确认 Chrome 已安装 XHS Bridge 扩展并已启用")
 
 
-def _open_chrome() -> None:
+def _open_chrome() -> bool:
     """尝试在后台启动 Chrome，不抢占用户当前窗口。"""
-    import subprocess
+    existing_pid = _find_chrome_pid()
+    already_running = existing_pid is not None
 
     candidates = [
         r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -141,25 +258,39 @@ def _open_chrome() -> None:
     ]
     for path in candidates:
         if os.path.exists(path):
-            subprocess.Popen([path])
-            return
+            process = subprocess.Popen([path])
+            if not already_running:
+                _record_managed_chrome(process.pid)
+            return not already_running
     # macOS 的 -g / -j 分别表示不切到前台、启动后隐藏。
     # 原先的 `open -a` 会让每次自动化都抢走用户正在使用的窗口。
     if sys.platform == "darwin":
         try:
             subprocess.Popen(["open", "-g", "-j", "-a", "Google Chrome"])
-            return
+            if already_running:
+                return False
+            for _ in range(20):
+                time.sleep(0.25)
+                pid = _find_chrome_pid()
+                if pid is not None:
+                    _record_managed_chrome(pid)
+                    return True
+            logger.warning("Chrome 已启动，但未能记录主进程；收尾时将只关闭自动化标签页")
+            return True
         except FileNotFoundError:
             pass
 
     # Linux fallback
     for cmd in [["google-chrome"], ["chromium-browser"]]:
         try:
-            subprocess.Popen(cmd)
-            return
+            process = subprocess.Popen(cmd)
+            if not already_running:
+                _record_managed_chrome(process.pid)
+            return not already_running
         except FileNotFoundError:
             continue
     logger.warning("找不到 Chrome，请手动打开浏览器")
+    return False
 
 
 def _connect(args: argparse.Namespace):
@@ -174,6 +305,35 @@ def _connect(args: argparse.Namespace):
 # _connect_saved_tab / _connect_existing 在 bridge 模式下与 _connect 等价
 _connect_saved_tab = _connect
 _connect_existing = _connect
+
+
+def cmd_cleanup(args: argparse.Namespace) -> None:
+    """清理自动化标签页，并关闭由本技能启动的 Chrome。"""
+    from xhs.bridge import BridgePage
+
+    bridge_url = getattr(args, "bridge_url", "ws://localhost:9333")
+    page = BridgePage(bridge_url)
+    tab_result: dict = {
+        "closed_tabs": 0,
+        "reason": "Bridge 或扩展未连接，跳过标签页清理",
+    }
+    if page.is_server_running() and page.is_extension_connected():
+        try:
+            tab_result = page.cleanup_managed_tabs()
+        except Exception as exc:
+            # 扩展可能尚未重新加载到支持 cleanup 的版本；Chrome 收尾仍应继续。
+            tab_result = {"closed_tabs": 0, "reason": f"标签页清理失败: {exc}"}
+
+    chrome_result = _quit_chrome(force=args.force_close_chrome)
+    _output(
+        {
+            "success": True,
+            "cleanup": {
+                "tabs": tab_result,
+                "chrome": chrome_result,
+            },
+        }
+    )
 
 
 # ─── 子命令实现 ───────────────────────────────────────────────────────────────
@@ -950,6 +1110,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # cleanup
+    sub = subparsers.add_parser("cleanup", help="任务收尾：清理自动化标签页并退出托管 Chrome")
+    sub.add_argument(
+        "--force-close-chrome",
+        action="store_true",
+        help="即使 Chrome 不是由本技能启动也退出（会关闭用户的全部 Chrome 窗口）",
+    )
+    sub.set_defaults(func=cmd_cleanup)
 
     # check-login
     sub = subparsers.add_parser("check-login", help="检查登录状态")

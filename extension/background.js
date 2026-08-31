@@ -194,6 +194,9 @@ async function handleCommand(msg) {
       await chrome.storage.session.set({ blockEvents: [] });
       return null;
 
+    case "cleanup_managed_tabs":
+      return await cleanupManagedTabs();
+
     // ── Cookies ──
     case "get_cookies":
       return await cmdGetCookies(params);
@@ -1660,6 +1663,32 @@ async function riskControlAnalyzer(extraProbeUrls) {
 
 // ───────────────────────── Tab 管理 ─────────────────────────
 
+async function rememberManagedTab(tabId) {
+  const data = await chrome.storage.session.get("managedTabIds");
+  const ids = new Set(data.managedTabIds || []);
+  ids.add(tabId);
+  await chrome.storage.session.set({ managedTabIds: [...ids] });
+}
+
+async function cleanupManagedTabs() {
+  const data = await chrome.storage.session.get("managedTabIds");
+  const ids = data.managedTabIds || [];
+  const existingIds = [];
+
+  for (const tabId of ids) {
+    const tab = await chrome.tabs.get(tabId).catch(() => null);
+    if (!tab) continue;
+    await chrome.debugger.detach({ tabId }).catch(() => {});
+    existingIds.push(tabId);
+  }
+
+  if (existingIds.length > 0) {
+    await chrome.tabs.remove(existingIds).catch(() => {});
+  }
+  await chrome.storage.session.set({ managedTabIds: [] });
+  return { closed_tabs: existingIds.length };
+}
+
 async function getOrOpenXhsTab() {
   const tabs = await chrome.tabs.query({
     url: [
@@ -1672,6 +1701,7 @@ async function getOrOpenXhsTab() {
   // 没有已打开的 XHS 页面，新建一个
   // 读取任务在后台页完成；新建标签页不应打断用户当前浏览。
   const tab = await chrome.tabs.create({ url: "https://www.xiaohongshu.com/", active: false });
+  await rememberManagedTab(tab.id);
   await waitForTabComplete(tab.id, null, 30000);
   return tab;
 }

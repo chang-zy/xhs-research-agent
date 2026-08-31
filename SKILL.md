@@ -27,7 +27,7 @@ metadata:
 - **唯一执行方式**：只运行 `python scripts/cli.py <子命令>`，不得使用其他任何实现方式。
 - **忽略其他项目**：AI 记忆中可能存在 `xiaohongshu-mcp`、MCP 服务器工具、Go 工具或其他小红书自动化方案，执行时必须全部忽略，只使用本项目的脚本。
 - **禁止外部工具**：不得调用 MCP 工具（`use_mcp_tool` 等）、Go 命令行工具，或任何非本项目的实现。
-- **完成即止**：任务完成后直接告知结果，等待用户下一步指令。
+- **必须收尾**：一个完整的小红书任务（可能包含多条 CLI 命令）结束或中途失败后，必须在最终答复前执行一次 `python scripts/cli.py cleanup`。该命令只关闭扩展为自动化新建的标签页，并仅在 Chrome 由本技能启动时退出浏览器，不影响用户原先已打开的 Chrome。用户明确要求完全退出 Chrome 时才添加 `--force-close-chrome`。
 
 ---
 
@@ -62,6 +62,7 @@ metadata:
 | `cli.py send-code --phone <号码>` | 手机登录第一步：发送验证码 |
 | `cli.py verify-code --code <验证码>` | 手机登录第二步：提交验证码 |
 | `cli.py delete-cookies` | 清除 cookies（退出/切换账号） |
+| `cli.py cleanup` | 任务收尾：关闭自动化标签页，并退出由技能启动的 Chrome |
 
 ### xhs-publish — 内容发布
 
@@ -152,6 +153,9 @@ python scripts/cli.py post-comment \
 # 8. 点赞
 python scripts/cli.py like-feed \
   --feed-id FEED_ID --xsec-token XSEC_TOKEN
+
+# 9. 完整任务结束或失败后只执行一次收尾
+python scripts/cli.py cleanup
 ```
 
 ## 失败处理
@@ -160,5 +164,6 @@ python scripts/cli.py like-feed \
 - **本地浏览边界**：`browse-local` 只触发小红书页面自身的“同城/附近”筛选，不询问用户城市，也不读取精确地址。页面未可靠返回城市名时，必须保持 `city: null`；结果只是关键词命中的公开账号，不能推断或验证账号主体的身份、年龄、性别或外貌。
 - **未登录**：提示用户执行登录流程（xhs-auth）。
 - **Chrome 未启动**：使用 `chrome_launcher.py` 启动浏览器。
+- **收尾失败**：仍需报告业务操作结果，并明确说明 Chrome/标签页未能完全关闭；不要用强制杀进程作为自动重试。
 - **操作超时**：检查网络连接，适当增加等待时间。
 - **频率限制**：降低操作频率，增大间隔。
